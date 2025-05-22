@@ -111,6 +111,43 @@ Before feeding the data into our deep learning models, thorough preprocessing is
 3. **Sentiment Mapping:** Converting sentiment labels (e.g., "positive", "negative") into numerical representations.
 4. **Creating Masks:** Generating aspect masks to highlight the relevant tokens for each aspect during training.
 5. **Padding and Truncation:** Ensuring all input sequences have a uniform length by padding shorter sequences and truncating longer ones.
+6. **BIO Tagging:** Assigning BIO tags to each token in the input sequence to indicate whether it is part of an aspect or not.
+
+### BIO Tagging Scheme
+
+In many NLP tasks, including aspect extraction, named entity recognition, and part-of-speech tagging, a common tagging scheme is used to label tokens in a sequence. The **BIO** (Beginning, Inside, Outside) tagging scheme is one such method. It helps identify the boundaries of entities or aspects within a text.
+Once the tags are assigned, they are converted into numerical labels for model training.
+
+<table>
+    <thead>
+        <tr>
+            <th>Tag</th>
+            <th>Meaning</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>B-ASP</td>
+            <td>Beginning of an aspect</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>Inside an aspect</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>Outside any aspect</td>
+        </tr>
+    </tbody>
+</table>
+
+**Example:**
+
+```
+Text: "The battery life is great"
+
+Tags: O O B-ASP I-ASP O O
+```
 
 Here's an example of the final preprocessed data structure for a single review:
 
@@ -132,15 +169,21 @@ Token Labels: ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 
 - **Polarities**: The sentiment polarity associated with each aspect. In this case, both aspects have a positive polarity.
 - **Token Labels**: The labels for each token in the input sequence. The aspect tokens are labeled as `B-ASP` (beginning of aspect) and `I-ASP` (inside aspect), while other tokens are labeled as `O` (outside aspect).
 
+The code for preprocessing the data can be viewed in the following notebook. Note that code will not work as data is not available in the Google Colab environment.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gautamnaik1994/Aspect-Based-Sentiment-Analysis/blob/main/notebooks/01.DataPrep.ipynb)
+
 ## Multi Step Approach
 
-The implemented aspect-based sentiment analysis involved a two-stage process. Initially, aspects were extracted from reviews using a pre-trained BERT model. Subsequently, a separate pre-trained BERT model was employed to classify the sentiment of each identified aspect. While effective, this methodology presented drawbacks including significant processing time, substantial manual optimization, and increased project complexity due to the use of two distinct models.
+Aspect-based sentiment analysis involves a two-step process. First extract the aspects from the reviews, and then determine the sentiment associated with each extracted aspect. This is a classic two-stage pipeline approach.
+In my approach, aspects were extracted from reviews using a pre-trained BERT model. Subsequently, a separate pre-trained BERT model was employed to classify the sentiment of each identified aspect. While effective, this methodology presented drawbacks including significant processing time, substantial manual optimization, and increased project complexity due to the use of two distinct models.
+That is why I decided to move towards a single-step approach.
 
 ## Single Step Approach
 
 A single pre-trained BERT model was used to simultaneously extract aspects and their associated sentiment, offering a simpler and faster alternative to multi-step approaches. This single-step method required a more complex architecture and more training data but streamlined the process. The following methods were employed to implement this approach.
 
-### Model Architecture
+### General Model Architecture
 
 **Aspect Extraction Head**: Because I will be extracting the aspects and determining the sentiment associated with each aspect, I will be using multi-head neural network. The first head will be used to extract the aspects. This will be powered by Bert model.  
 **Sentiment Classification Head**: The second head will be used to determine the sentiment associated with each aspect. The output of the first head will be used as the input to the second head. The final output will be a list of aspects and their associated sentiment polarities. I tried 3 different methods to implement the sentiment classification head. The methods are as follows:
@@ -150,6 +193,10 @@ A single pre-trained BERT model was used to simultaneously extract aspects and t
 - **Simple Attention and CLS Embedding**
 
 I will discuss each of these methods in detail in the following sections.
+
+<Alert title="NOTE" variant="info">
+In the upcoming code snippets, I have used `mps` (Metal Performance Shaders) device for GPU acceleration. If you are using a different device, please change the device to `cuda` or `cpu` as per your requirement.
+</Alert>
 
 ## Using Mean Pooling
 
@@ -258,7 +305,6 @@ for epoch in range(num_epochs):
                 sentiment_loss = criterion(sentiment_logits.view(-1, 3), sentiment_target)
                 sentiment_losses.append(sentiment_loss)
 
-
         if sentiment_losses:
             sentiment_loss = torch.stack(sentiment_losses).mean()
         else:
@@ -272,7 +318,7 @@ for epoch in range(num_epochs):
         optimizer.zero_grad()
 ```
 
-Following is the evaluation loop for the model
+**Following is the evaluation loop for the model**
 
 ```python
 
@@ -287,7 +333,7 @@ def extract_aspect_spans(pred_labels):
     spans = []
     i = 0
     while i < len(pred_labels):
-        if pred_labels[i] == 1:  # B-ASP
+        if (pred_labels[i] == 1):  # B-ASP
             start = i
             i += 1
             while i < len(pred_labels) and pred_labels[i] == 2:  # I-ASP
@@ -348,6 +394,10 @@ This model performed poorly even during the training phase for the sentiment det
 
 For example, if the aspect term is "battery life", the mean pooling method will take the mean of the embeddings for "battery" and "life" without considering the context of the sentence. This might lead to poor performance in sentiment detection.
 
+The code is available in the following notebook. Note that code will not work as data is not available in the Google Colab environment.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gautamnaik1994/Aspect-Based-Sentiment-Analysis/blob/main/notebooks/03.BertBIO_Sentiment_Attention.ipynb)
+
 ## Using MultiHead Attention
 
 Since the previous method was not able to learn sentiment associated with each aspect, I decided to try a different approach. I used multi-head attention to focus on different parts of the aspect term.
@@ -359,7 +409,7 @@ Multi-head attention is a mechanism that allows the model to focus on different 
 
 In the context of aspect-based sentiment analysis, multi-head attention can be used to focus on different parts of the aspect term when making predictions. For example, if the aspect term is "battery life", the model can learn to focus on different parts of the aspect term (e.g., "battery" and "life") when making predictions. This allows the model to capture more complex relationships between the tokens in the input sequence.
 
-**Following is the model architecture code**
+### Model Architecture
 
 ```python
 class SentimentClassifier(nn.Module):
@@ -460,6 +510,568 @@ for epoch in range(num_epochs):
 
 The validation loop is similar to the validation loop in the previous method where `extract_aspect_spans` function is used to extract the aspect spans from the predicted labels
 
+### Model Performance
+
+The model performed well during the training phase and was able to extract the aspects and their associated sentiment. The model was able to learn the sentiment associated with each aspect and was able to predict the sentiment accurately. Follow are the some of the examples of the model output. In the following first example, notice that the model was able to extract the aspect "view" ,"prices" and "food" and tagged them with "Negative" sentiment, But the "view" aspect should have been tagged as "Positive" sentiment. I think the model was not able to detect the sarcasm in the review.
+
+**Example Review**
+
+>"the high prices you ' re going to pay is for the view not for the food ."
+
+**Output**
+
+<table>
+    <thead>
+        <tr>
+            <th>BIO Tag</th>
+            <th>Word</th>
+            <th>Sentiment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>high</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>prices</td>
+             <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>you</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>\'</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>re</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>going</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>to</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>pay</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>view</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>not</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>food</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+
+**Example Review**
+
+>"Car quality is very nice but the controller sucks . The controller of this car do not works properly and the final in the controller do not rotate fully it only rotate like button"
+
+**Output**
+
+<table >
+    <thead>
+        <tr >
+            <th>BIO Tag</th>
+            <th>Word</th>
+            <th>Sentiment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>B-ASP</td>
+            <td>car</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>quality</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>very</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>nice</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>but</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>controller</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>sucks</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>controller</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>of</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>this</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>car</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>do</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>not</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>works</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>properly</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>final</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>in</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>controller</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>do</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>not</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>rotate</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>fully</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>it</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>only</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>rotate</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>like</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>button</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+
+**Example Review**
+
+>"This remote control car is fun, fast, and easy to handle—perfect for kids! The build quality is sturdy and it runs smoothly on different surfaces. Battery life is decent and the controls are very responsive. A great gift for kids!"
+
+**Output**
+
+<table >
+    <thead>
+        <tr >
+            <th>BIO Tag</th>
+            <th>Word</th>
+            <th>Sentiment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>O</td>
+            <td>this</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>remote</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>control</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>car</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>fun</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>,</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>fast</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>,</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>easy</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>to</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>handle</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>—</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>perfect</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>kids</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>!</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>build</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>quality</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>sturdy</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>it</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>runs</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>smoothly</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>on</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>different</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>surfaces</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>battery</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>life</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>decent</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>controls</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>are</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>very</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>responsive</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>a</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>great</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>gift</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>kids</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>!</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+
+The code is available in the following notebook. Note that code will not work as data is not available in the Google Colab environment.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gautamnaik1994/Aspect-Based-Sentiment-Analysis/blob/main/notebooks/03.BertBIO_Sentiment_Attention.ipynb)
+
 ## Using Simple Attention and CLS Embedding
 
 The Multi-head attention module is a bit complex and requires a lot of parameters to be tuned. So I decided to try a simpler approach. I used the CLS token embedding and simple attention mechanism to get the sentiment logits.
@@ -478,8 +1090,92 @@ cls_embedding = bert.last_hidden_state[:, 0, :]
 The `bert.last_hidden_state` is the output of the BERT model. The `[:, 0, :]` indexing extracts the CLS token embedding from the output. The shape of the CLS token embedding is `[batch_size, hidden_size]`. The hidden size is usually 768 for BERT-base model.
 
 </Aside>
+<Aside>
 
-**Following is the model architecture code**
+### What is Simple Attention?
+
+Simple attention is a mechanism that allows the model to focus on different parts of the input sequence when making predictions. It does this by computing a weighted sum of the input embeddings, where the weights are learned by the model. The attention weights are computed using a linear layer followed by a softmax function.  
+
+**Following is the isolated example code to compute the attention scores and weights:**
+
+```python
+import torch
+import torch.nn as nn
+
+# Dummy token embeddings
+# Let's say we have 1 sentence, 5 tokens, each of 4 dimensions (hidden_size=4)
+token_embeddings = torch.tensor([
+    [
+        [0.1, 0.2, 0.3, 0.4],  # Token 0
+        [0.5, 0.6, 0.7, 0.8],  # Token 1
+        [0.9, 1.0, 1.1, 1.2],  # Token 2
+        [1.3, 1.4, 1.5, 1.6],  # Token 3
+        [1.7, 1.8, 1.9, 2.0],  # Token 4
+    ]
+])  # Shape: [1, 5, 4] → (batch_size=1, seq_len=5, hidden_size=4)
+
+# Dummy aspect mask
+# Suppose tokens 1 and 2 belong to the aspect (index 1 and 2)
+aspect_mask = torch.tensor([
+    [0, 1, 1, 0, 0]
+])  # Shape: [1, 5]
+
+
+# Define attention scoring layer
+# This layer will learn to assign an importance score to each token
+aspect_attention = nn.Linear(4, 1)  # input_dim=hidden_size=4, output_dim=1
+
+# Forward pass
+with torch.no_grad(): # To prevent gradient computation
+    B, L, H = token_embeddings.shape
+
+    # Compute attention scores for each token
+    # You create a simple neural network layer (aspect_attention) 
+    # that will learn to assign an “importance score” to each token, based on its 4 features.
+    attn_scores = aspect_attention(token_embeddings).squeeze(-1)  # Shape: [1, 5]
+
+    print("Raw Attention Scores before masking:", attn_scores)
+    # Output: Raw Attention Scores (before masking): tensor([[-0.4440, -0.4452, -0.4464, -0.4477, -0.4489]])
+
+    # Mask non-aspect tokens
+    attn_scores = attn_scores.masked_fill(aspect_mask == 0, -1e9)  # Large negative so softmax ~ 0
+
+    print("Masked Attention Scores:", attn_scores)
+    # Output: Masked Attention Scores: tensor([[-1.0000e+09, -4.4520e-01, -4.4643e-01, -1.0000e+09, -1.0000e+09]])
+
+    # You use the softmax function to turn the scores into probabilities (attention weights) that sum to 1, 
+    # but only for the aspect tokens.
+    # The higher the score, the more “attention” that token gets.
+    attn_weights = torch.softmax(attn_scores, dim=1)  # Shape: [1, 5]
+
+    print("Attention Weights after Softmax:", attn_weights)
+    # Output: Attention Weights after Softmax: tensor([[0.0000, 0.5003, 0.4997, 0.0000, 0.0000]])
+
+    # You multiply each token’s embedding by its attention weight and sum them up.
+    # This gives you a single vector (the “pooled aspect representation”) that summarizes the aspect, 
+    # focusing on the most important tokens.
+    # Higher attention weight = more important token
+    pooled_aspect = torch.bmm(attn_weights.unsqueeze(1), token_embeddings)  # [B, 1, H]
+    pooled_aspect = pooled_aspect.squeeze(1)  # [B, H]
+
+    print("Pooled Aspect Representation:", pooled_aspect)
+    # Output: Pooled Aspect Representation: tensor([[0.6999, 0.7999, 0.8999, 0.9999]])
+```
+
+**Output:**
+
+```
+Raw Attention Scores (before masking): tensor([[-0.4440, -0.4452, -0.4464, -0.4477, -0.4489]])
+Masked Attention Scores: tensor([[-1.0000e+09, -4.4520e-01, -4.4643e-01, -1.0000e+09, -1.0000e+09]])
+Attention Weights after Softmax: tensor([[0.0000, 0.5003, 0.4997, 0.0000, 0.0000]])
+Pooled Aspect Representation: tensor([[0.6999, 0.7999, 0.8999, 0.9999]])
+```
+
+</Aside>
+
+The reason I used simple attention is because it is less complex than multi-head attention and has less number of weights to be tuned. This makes it easier to train and less prone to overfitting. The simple attention mechanism is also easier to interpret, as it provides a single attention score for each token in the input sequence. This allows us to see which tokens are most important for the sentiment classification task.
+
+### Model Architecture
 
 ```python
 class SentimentClassifier(nn.Module):
@@ -528,9 +1224,11 @@ class AspectDetectionModel(nn.Module):
 
 ```
 
-In the above code, I am extracting the CLS token embedding from the bert model output.  Along with that I am extracting the aspect pooled embedding using the attention score.
-The forward method processes the input as follows: it first extracts the [CLS] token embedding, which often represents the overall sentence meaning. The aspect mask is expanded to match the shape of the token embeddings, and non-aspect tokens are zeroed out. The model then computes attention scores for each token using the attention_param layer, masking out non-aspect tokens by assigning them a very large negative value (so their softmax probability becomes near zero). These attention scores are normalized with softmax, and used to compute a weighted sum (pooling) of the token embeddings, focusing on the aspect tokens.
-
+In the above code, I am extracting the CLS token embedding from the bert model output. Along with that I am extracting the aspect pooled embedding using the attention score.  
+The `forward` method processes the input as follows: it first extracts the [CLS] token embedding, which often represents the overall sentence meaning.  
+The aspect mask is expanded to match the shape of the token embeddings, and non-aspect tokens are zeroed out.  
+The model then computes attention scores for each token using the attention_param layer, masking out non-aspect tokens by assigning them a very large negative value (so their softmax probability becomes near zero).
+These attention scores are normalized with softmax, and used to compute a weighted sum (pooling) of the token embeddings, focusing on the aspect tokens.  
 The pooled aspect embedding is concatenated with the [CLS] embedding, passed through dropout and layer normalization, and finally through the classifier to produce sentiment logits. The method returns both the logits and the attention scores, allowing for interpretability of which tokens contributed most to the sentiment prediction. This design enables the model to focus on specific aspects within a sentence when determining sentiment, rather than treating the sentence as a whole.
 
 **Following is the training loop for the model.**
@@ -586,15 +1284,121 @@ for epoch in range(num_epochs):
 
 The validation loop is similar to the validation loop in the previous method where `extract_aspect_spans` function is used to extract the aspect spans from the predicted labels.
 
-## Performance
+### Model Performance
 
-The above model that used Simple Attentions and CLS Embedding gave the best output. Following is the output of the model on the some of sample reviews from Amazon website.
+The above model that used Simple Attentions and CLS Embedding gave the best output. Following is the output of the model on the some of sample reviews.
 
 **Example Review**
 
-```
-This remote control car is fun, fast, and easy to handle—perfect for kids! The build quality is sturdy and it runs smoothly on different surfaces. Battery life is decent and the controls are very responsive. A great gift for kids!"
-```
+>"the high prices you ' re going to pay is for the view not for the food ."
+
+**Output**
+
+<table>
+    <thead>
+        <tr>
+            <th>BIO Tag</th>
+            <th>Word</th>
+            <th>Sentiment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>high</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>prices</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>you</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>\'</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>re</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>going</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>to</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>pay</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>view</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>not</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>food</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+
+**Example Review**
+
+>"This remote control car is fun, fast, and easy to handle—perfect for kids! The build quality is sturdy and it runs smoothly on different surfaces. Battery life is decent and the controls are very responsive. A great gift for kids!"
 
 **Output**
 
@@ -852,16 +1656,14 @@ This remote control car is fun, fast, and easy to handle—perfect for kids! The
 
 **Example Review**
 
-```
-Car quality is very nice but the controller sucks . The controller of this car do not works properly and the final in the controller do not rotate fully it only rotate like button
-```
+>"Car quality is very nice but the controller sucks . The controller of this car do not works properly and the final in the controller do not rotate fully it only rotate like button"
 
 **Output**
 
 <table>
     <thead>
         <tr>
-            <th>BIO Tag</th>
+            <th >BIO Tag</th>
             <th>Word</th>
             <th>Sentiment</th>
         </tr>
@@ -1040,7 +1842,16 @@ Car quality is very nice but the controller sucks . The controller of this car d
     </tbody>
 </table>
 
-## Challenges and Limitations
+The code is available in the following notebook. Note that code will not work as data is not available in the Google Colab environment.
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gautamnaik1994/Aspect-Based-Sentiment-Analysis/blob/main/notebooks/04.BertBIO_Sentiment_Attention_v2.ipynb)
+
+## Github Repository
+
+You can find the complete code for this article in my Github profile. Following is the link to the repository.  
+[https://github.com/gautamnaik1994/Aspect-Based-Sentiment-Analysis](https://github.com/gautamnaik1994/Aspect-Based-Sentiment-Analysis)
+
+## Real World Hurdles in ABSA
 
 Even with the advancements of deep learning and sophisticated models like BERT, Aspect-Based Sentiment Analysis presents its own set of challenges:
 
@@ -1049,8 +1860,13 @@ Even with the advancements of deep learning and sophisticated models like BERT, 
 - **Data Requirements:** While BERT helps, deep learning models still need a significant amount of labeled data to perform well, especially for multi-task learning, and collecting such data can be time-consuming and expensive.
 - **Computation:** Training and fine-tuning these large transformer-based models requires substantial computing power, often necessitating GPUs.
 
-## Further Reading
+## Future Scope
 
-- [BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding](https://arxiv.org/abs/1810.04805)
-- [Hugging Face Transformers Documentation](https://huggingface.co/docs/transformers/index)
-- [Aspect-Based Sentiment Analysis Survey](https://arxiv.org/abs/2107.04625)
+- **Fine-tuning on Domain-Specific Data:** Fine-tuning the model on domain-specific data can help improve the performance of the model.
+- **Exploring Other Architectures:** Exploring other architectures like RoBERTa, DistilBERT, etc., can help improve the performance of the model.
+- **Using Transfer Learning:** Using transfer learning techniques can help improve the performance of the model.
+- **Push to Hugging Face:** I will push the model to Hugging Face so that it can be used by others as well.
+
+## Conclusion
+
+In this article, I discussed various approaches to conducting Aspect-Based Sentiment Analysis. The project's aim was to enhance my skills in NLP and deep learning. I gained significant insights while working on it, and I hope you find this article useful. If you have any questions or suggestions, don't hesitate to contact me.
