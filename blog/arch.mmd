@@ -1,0 +1,38 @@
+---
+config:
+  layout: elk
+  theme: redux-dark
+  look: classic
+---
+flowchart TD
+ subgraph ae["Aspect Extraction"]
+        E["Aspect Extraction Head (Linear)"]
+        F["Predicted BIO Tags"]
+        G["Span Extraction Logic<br>(start-end indices)"]
+        H["Build Aspect List"]
+  end
+ subgraph sc["Sentiment Classification"]
+        S["Sentiment Classification Head"]
+        O{"Sentiment Detection Methods"}
+        J1["Mean Pooling over Aspect Tokens"]
+        J2["Multi-Head Attention over BERT Embeddings"]
+        J3["Simple Attention with CLS Token"]
+  end
+    A(["Input Sentence"]) --> B["BERT Tokenizer"]
+    B --> C["Input IDs, Attention Mask, Token Type IDs"]
+    C --> D["BERT Encoder"]
+    D --> M["BERT Output Embeddings"]
+    M --> E
+    M -- Pass Embeddings to Sentiment Classification Head --> S
+    E --> F
+    F --> G
+    G --> H
+    H --> S
+    S --> O
+    O --> J1 & J2 & J3
+    J1 --> K["Sentiment Logits"]
+    J2 --> K
+    J3 --> K
+    K --> L(["Final Output: Aspect Terms + Sentiments"])
+    style ae fill:#7ba11775
+    style sc fill:#e3934c61

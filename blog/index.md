@@ -41,6 +41,13 @@ ABSA moves you beyond a generic 'happy or unhappy' score, empowering you to pinp
 
 The core challenge I faced in this project stemmed from its inherently multi-stage nature. Typically, to achieve Aspect-Based Sentiment Analysis, you'd perform two distinct tasks: first, extracting the aspects from the reviews, and then determining the sentiment associated with each extracted aspect. This proved particularly challenging because, in real-world scenarios, explicit aspect labels are rarely available within raw review texts.
 
+### Tech Stack
+
+- **Python**: The primary programming language used for the project.
+- **PyTorch**: The deep learning framework used for building and training the model.
+- **Transformers**: The Hugging Face library used for pre-trained BERT models.
+- **Polars & Pandas**: The library used for data manipulation and analysis.
+
 ### Why Use BERT?
 
 Traditional models look at words in isolation, but BERT understands the context of each word in a sentence. This helps it identify aspects and their sentiments more accurately, especially when the same word can mean different things in different contexts. Its pre-training on vast amounts of text data makes it incredibly powerful for a wide range of NLP tasks, including this complex multi-task ABSA problem.
@@ -57,25 +64,9 @@ To overcome these limitations, I then explored a **single-step approach**. The g
 
 ## Neural Network Pipeline
 
-```
-Input Text
-   |
-[Tokenizer]
-   |
-[Input IDs, Attention Mask]
-   |
-[BERT Model]
-   |
-[Aspect Extraction Head] ---> Aspect Tags (BIO)
-   |
-[Aspect Extraction]
-   |
-[Sentiment Classification Head]
-   |
-[Sentiment for Each Aspect]
-```
+![Neural Network Pipeline](pipeline.png)
 
-## How Does the Model Work?
+### How Does the Model Work?
 
 1. The review text is split into tokens (words or subwords).
 2. Each token is converted to an ID and passed to BERT, a language model that understands context.
@@ -83,12 +74,12 @@ Input Text
 4. The first head (aspect extraction) predicts which tokens are part of an aspect (using BIO tags).
 5. For each detected aspect, the second head (sentiment classifier) predicts if the sentiment is positive, negative, or neutral.
 
-## Dataset Used
+## Dataset
 
 The dataset used in this project is the SemEval 2014 Task 4 dataset, which contains customer reviews of laptops. The dataset is divided into three parts: the training set, the test set, and the validation set.
 The dataset is available on the [SemEval website](https://alt.qcri.org/semeval2014/task4/). The dataset is in the form of a JSONL file, with each row representing a review and its associated aspect and sentiment labels. The aspect categories include "battery", "camera", "design", "performance", and "price". The sentiment labels are "positive", "negative", and "neutral".
 
-Following is the format of the training data.
+Below is the format of the training data.
 
 ```json
 {
@@ -102,7 +93,7 @@ Following is the format of the training data.
 }
 ```
 
-## Dataset Preprocessing
+### Dataset Preprocessing
 
 Before feeding the data into our deep learning models, thorough preprocessing is crucial. This involved several key steps:
 
@@ -113,7 +104,7 @@ Before feeding the data into our deep learning models, thorough preprocessing is
 5. **Padding and Truncation:** Ensuring all input sequences have a uniform length by padding shorter sequences and truncating longer ones.
 6. **BIO Tagging:** Assigning BIO tags to each token in the input sequence to indicate whether it is part of an aspect or not.
 
-### BIO Tagging Scheme
+#### BIO Tagging Scheme
 
 In many NLP tasks, including aspect extraction, named entity recognition, and part-of-speech tagging, a common tagging scheme is used to label tokens in a sequence. The **BIO** (Beginning, Inside, Outside) tagging scheme is one such method. It helps identify the boundaries of entities or aspects within a text.
 Once the tags are assigned, they are converted into numerical labels for model training.
@@ -160,7 +151,7 @@ Polarities: [1, 1]
 Token Labels: ['O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'B-ASP', 'I-ASP', 'O', 'O', 'O', 'B-ASP', 'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O']
 ```
 
-### Explanation of the output
+#### Explanation of the output
 
 - **Tokens**: The input text is tokenized into individual words and sub-words. The special tokens `[CLS]` and `[SEP]` are added to the beginning and end of the sequence, respectively.
 - **Input IDs**: Each token is mapped to its corresponding ID in the BERT vocabulary. Padding tokens are added to ensure that all sequences have the same length.
@@ -185,8 +176,13 @@ A single pre-trained BERT model was used to simultaneously extract aspects and t
 
 ### General Model Architecture
 
-**Aspect Extraction Head**: Because I will be extracting the aspects and determining the sentiment associated with each aspect, I will be using multi-head neural network. The first head will be used to extract the aspects. This will be powered by Bert model.  
-**Sentiment Classification Head**: The second head will be used to determine the sentiment associated with each aspect. The output of the first head will be used as the input to the second head. The final output will be a list of aspects and their associated sentiment polarities. I tried 3 different methods to implement the sentiment classification head. The methods are as follows:
+**Aspect Extraction Head**  
+Because I will be extracting the aspects and determining the sentiment associated with each aspect, I will be using multi-head neural network. The first head will be used to extract the aspects. This will be powered by Bert model.  
+
+**Sentiment Classification Head**:  
+The second head will be used to determine the sentiment associated with each aspect. The output of the first head will be used as the input to the second head. The final output will be a list of aspects and their associated sentiment polarities.
+
+I tried 3 different methods to implement the sentiment classification head. The methods are as follows:
 
 - **Mean Pooling**
 - **Multi-Head Attention**
@@ -248,7 +244,7 @@ This vector represents the average embedding of the aspect term **"battery life"
 
 ### Model Architecture
 
-Follow is the model architecture for Multi-Head Neural Network using Mean Pooling. The `self.classifier` is the Aspect Extraction Head and `self.sentiment_classifier` is the Sentiment Classification Head. The `forward` method takes the input IDs and attention mask as input and returns the logits and sequence output.  
+Below is the model architecture for Multi-Head Neural Network using Mean Pooling. The `self.classifier` is the Aspect Extraction Head and `self.sentiment_classifier` is the Sentiment Classification Head. The `forward` method takes the input IDs and attention mask as input and returns the logits and sequence output.  
 Sequence output is the contextualized embeddings for each token in the input sequence. The logits are the output of the Aspect Extraction Head.
 
 ```python
@@ -267,7 +263,7 @@ class AspectDetectionModel(nn.Module):
         return logits, sequence_output
 ```
 
-Following is the training loop for the model. It takes the input IDs, attention mask, and labels as input and returns the loss. If you notice, I am using sentiment loss as well. The sentiment loss is calculated using the mean pooling of the sequence output.
+Below is the training loop for the model. It takes the input IDs, attention mask, and labels as input and returns the loss. If you notice, I am using sentiment loss as well. The sentiment loss is calculated using the mean pooling of the sequence output.
 
 ```python
 # Training Loop Snippet
@@ -313,12 +309,10 @@ for epoch in range(num_epochs):
         total_sentiment_train_loss += sentiment_loss.item()
         total_loss = aspect_loss + sentiment_loss
 
-        total_loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+        ...
 ```
 
-**Following is the evaluation loop for the model**
+**Below is the evaluation loop for the model**
 
 ```python
 
@@ -349,50 +343,639 @@ def extract_aspect_spans(pred_labels):
 total_aspect_val_loss = 0
 total_sentiment_val_loss = 0
 
-with torch.no_grad():
-    model.eval()
+for batch in val_dataloader:
+    input_ids = batch["input_ids"].to("mps")
+    attention_mask = batch["attention_mask"].to("mps")
+    labels = batch["labels"].to("mps")
 
-    for batch in val_dataloader:
-        input_ids = batch["input_ids"].to("mps")
-        attention_mask = batch["attention_mask"].to("mps")
-        labels = batch["labels"].to("mps")
+    logits, sequence_output = model(input_ids, attention_mask)
+    aspect_loss = criterion(logits.view(-1, len(label2id)), labels.view(-1))
+    total_aspect_val_loss += aspect_loss.item()
 
-        logits, sequence_output = model(input_ids, attention_mask)
-        aspect_loss = criterion(logits.view(-1, len(label2id)), labels.view(-1))
-        total_aspect_val_loss += aspect_loss.item()
+    sentiment_losses = []
+    preds = torch.argmax(logits, dim=2)
+    for i in range(len(input_ids)):
+        # During training, I used the existing aspect spans from the training data. But during evaluation, 
+        # I will extract the aspect spans from the predicted labels
+        # This is because the aspect spans are not available in the validation data
+        # I will use the predicted labels to extract the aspect spans
+        # The predicted labels are in the form of BIO tags 
+        aspects = extract_aspect_spans(preds[i].cpu().tolist())
+        for aspect_index, sentiment in zip(batch["aspects_index"][i], batch["aspects_sentiment"][i]):
+            if aspect_index in aspects and aspect_index[1] < sequence_output.size(1):
+                pooled = sequence_output[i, aspect_index[0]:aspect_index[1]+1].mean(dim=0)
+                sentiment_logits = model.sentiment_classifier(pooled.unsqueeze(0))
+                sentiment_target = torch.tensor([sentiment], dtype=torch.long).to("mps")
+                sentiment_loss = criterion(sentiment_logits.view(-1, 3), sentiment_target)
+                sentiment_losses.append(sentiment_loss)
 
-        sentiment_losses = []
-        preds = torch.argmax(logits, dim=2)
-        for i in range(len(input_ids)):
-            # During training, I used the existing aspect spans from the training data. But during evaluation, 
-            # I will extract the aspect spans from the predicted labels
-            # This is because the aspect spans are not available in the validation data
-            # I will use the predicted labels to extract the aspect spans
-            # The predicted labels are in the form of BIO tags 
-            aspects = extract_aspect_spans(preds[i].cpu().tolist())
-            for aspect_index, sentiment in zip(batch["aspects_index"][i], batch["aspects_sentiment"][i]):
-                if aspect_index in aspects and aspect_index[1] < sequence_output.size(1):
-                    pooled = sequence_output[i, aspect_index[0]:aspect_index[1]+1].mean(dim=0)
-                    sentiment_logits = model.sentiment_classifier(pooled.unsqueeze(0))
-                    sentiment_target = torch.tensor([sentiment], dtype=torch.long).to("mps")
-                    sentiment_loss = criterion(sentiment_logits.view(-1, 3), sentiment_target)
-                    sentiment_losses.append(sentiment_loss)
+    if sentiment_losses:
+        sentiment_loss = torch.stack(sentiment_losses).mean()
+    else:
+        sentiment_loss = torch.tensor(0.0).to("mps")
 
-        if sentiment_losses:
-            sentiment_loss = torch.stack(sentiment_losses).mean()
-        else:
-            sentiment_loss = torch.tensor(0.0).to("mps")
-
-        total_sentiment_val_loss += sentiment_loss.item()
+    total_sentiment_val_loss += sentiment_loss.item()
 ```
 
 In above code you can see that I am using the `extract_aspect_spans` function to extract the aspect spans from the predicted labels. The predicted labels are in the form of BIO tags. The `extract_aspect_spans` function takes the predicted labels as input and returns the aspect spans.
 
 ### Model Performance
 
-This model performed poorly even during the training phase for the sentiment detection section. This might be because I was trying to directly use the mean of the aspect embeddings to get the sentiment logits. The mean pooling method does not take into account the context of the aspect term in the sentence.
+**Aspect Extraction Metrics**
 
-For example, if the aspect term is "battery life", the mean pooling method will take the mean of the embeddings for "battery" and "life" without considering the context of the sentence. This might lead to poor performance in sentiment detection.
+```
+              precision    recall  f1-score   support
+
+         ASP       0.76      0.83      0.79     11700
+
+   micro avg       0.76      0.83      0.79     11700
+   macro avg       0.76      0.83      0.79     11700
+weighted avg       0.76      0.83      0.79     11700
+```
+
+**Sentiment Classification Metrics**
+
+```
+              precision    recall  f1-score   support
+
+         neg       0.90      0.88      0.89      2329
+         pos       0.94      0.97      0.96      6686
+         neu       0.61      0.42      0.50       667
+
+    accuracy                           0.91      9682
+   macro avg       0.82      0.76      0.78      9682
+weighted avg       0.91      0.91      0.91      9682
+```
+
+From above report we can see that model performance was good on the validation set. The model was able to extract the aspects with a good precision and recall. The sentiment classification was also good with a good precision and recall.
+
+Let us look at some examples of the model predictions.
+
+**Review**
+
+> "the high prices you ' re going to pay is for the view not for the food ."
+
+**Output**
+
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
+<table>
+    <thead>
+        <tr>
+            <th>BIO Tag</th>
+            <th>Word</th>
+            <th>Sentiment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>high</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>prices</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>you</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>\'</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>re</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>going</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>to</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>pay</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>view</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>not</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>food</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+</div>
+</ExpandableSeeMore>
+
+**Review**
+
+>"This remote control car is fun, fast, and easy to handle—perfect for kids! The build quality is sturdy and it runs smoothly on different surfaces. Battery life is decent and the controls are very responsive. A great gift for kids!"
+
+**Output**
+
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
+<table>
+    <thead>
+        <tr>
+            <th>BIO Tag</th>
+            <th>Word</th>
+            <th>Sentiment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>O</td>
+            <td>this</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>remote</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>control</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>car</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>fun</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>,</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>fast</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>,</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>easy</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>to</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>handle</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>—</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>perfect</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>kids</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>!</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>build</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>quality</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>sturdy</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>it</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>runs</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>smoothly</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>on</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>different</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>surfaces</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>battery</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>life</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>decent</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>controls</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>are</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>very</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>responsive</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>a</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>great</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>gift</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>for</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>kids</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>!</td>
+            <td></td>
+        </tr>
+    </tbody>
+</table>
+</div>
+</ExpandableSeeMore>
+
+**Review**
+
+> Car quality is very nice but the controller sucks . The controller of this car do not works properly and the final in the controller do not rotate fully it only rotate like button
+
+**Output**
+
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
+<table>
+    <thead>
+        <tr>
+            <th>BIO Tag</th>
+            <th>Word</th>
+            <th>Sentiment</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>B-ASP</td>
+            <td>car</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>I-ASP</td>
+            <td>quality</td>
+            <td>positive</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>is</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>very</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>nice</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>but</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>controller</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>sucks</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>.</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>controller</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>of</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>this</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>car</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>do</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>not</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>works</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>properly</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>and</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>final</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>in</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>the</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>controller</td>
+            <td>negative</td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>do</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>not</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>rotate</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>fully</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>it</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>only</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>rotate</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>O</td>
+            <td>like</td>
+            <td></td>
+        </tr>
+        <tr>
+            <td>B-ASP</td>
+            <td>button</td>
+            <td>negative</td>
+        </tr>
+    </tbody>
+</table>
+</div>
+</ExpandableSeeMore>
 
 The code is available in the following notebook. Note that code will not work as data is not available in the Google Colab environment.
 
@@ -458,7 +1041,7 @@ The `forward` method for `SentimentClassifier` takes the token embeddings and as
 I am generating the aspect mask for each aspect span. The main job of aspect mask is to be zero out the non-aspect tokens. After that, the aspect embeddings are added to get the aspect pooled embeddings, and then divided by the number of aspect tokens.
 This is to build the query matrix for the multi-head attention. The key and value matrices are the same as the token embeddings. The output of the multi-head attention is then passed to the Linear layer to get the sentiment logits. The sentiment loss is then calculated using the CrossEntropyLoss function. The sentiment loss is added to the aspect loss to get the total loss. The total loss is then backpropagated to update the model weights.
 
-**Following is the training loop for the model.**
+**Below is the training loop for the model.**
 
 ```python
 num_epochs = 10
@@ -503,16 +1086,44 @@ for epoch in range(num_epochs):
         total_sentiment_train_loss += sentiment_loss.item()
         total_loss = aspect_loss + sentiment_loss
 
-        total_loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
+        ...
 ```
 
 The validation loop is similar to the validation loop in the previous method where `extract_aspect_spans` function is used to extract the aspect spans from the predicted labels
 
 ### Model Performance
 
-The model performed well during the training phase and was able to extract the aspects and their associated sentiment. The model was able to learn the sentiment associated with each aspect and was able to predict the sentiment accurately. Follow are the some of the examples of the model output. In the following first example, notice that the model was able to extract the aspect "view" ,"prices" and "food" and tagged them with "Negative" sentiment, But the "view" aspect should have been tagged as "Positive" sentiment. I think the model was not able to detect the sarcasm in the review.
+Below is the model performance on the validation set.
+
+**Aspect Extraction Metrics**
+
+```
+              precision    recall  f1-score   support
+
+         ASP       0.71      0.79      0.75     11700
+
+   micro avg       0.71      0.79      0.75     11700
+   macro avg       0.71      0.79      0.75     11700
+weighted avg       0.71      0.79      0.75     11700
+```
+
+**Sentiment Classification Metrics**
+
+```
+              precision    recall  f1-score   support
+
+         neg       0.84      0.83      0.84      2222
+         pos       0.92      0.96      0.94      6279
+         neu       0.57      0.33      0.42       635
+
+    accuracy                           0.88      9136
+   macro avg       0.78      0.71      0.73      9136
+weighted avg       0.87      0.88      0.88      9136
+```
+
+From the above report we can see that model performance is good on the validation set. The model was able to extract the aspects with a good precision and recall. The sentiment classification was also good with a good precision and recall. The model is able to classify the sentiments with a good accuracy.
+
+Following are the some of the examples of the model output. In the following first example, notice that the model was able to extract the aspect "view" ,"prices" and "food" and tagged them with "Negative" sentiment, But the "view" aspect should have been tagged as "Positive" sentiment. I think the model was not able to detect the sarcasm in the review.
 
 **Example Review**
 
@@ -520,6 +1131,8 @@ The model performed well during the training phase and was able to extract the a
 
 **Output**
 
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
 <table>
     <thead>
         <tr>
@@ -621,6 +1234,8 @@ The model performed well during the training phase and was able to extract the a
         </tr>
     </tbody>
 </table>
+</div>
+</ExpandableSeeMore>
 
 **Example Review**
 
@@ -628,7 +1243,9 @@ The model performed well during the training phase and was able to extract the a
 
 **Output**
 
-<table >
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
+<table>
     <thead>
         <tr >
             <th>BIO Tag</th>
@@ -809,6 +1426,8 @@ The model performed well during the training phase and was able to extract the a
         </tr>
     </tbody>
 </table>
+</div>
+</ExpandableSeeMore>
 
 **Example Review**
 
@@ -816,7 +1435,9 @@ The model performed well during the training phase and was able to extract the a
 
 **Output**
 
-<table >
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
+<table>
     <thead>
         <tr >
             <th>BIO Tag</th>
@@ -1067,6 +1688,8 @@ The model performed well during the training phase and was able to extract the a
         </tr>
     </tbody>
 </table>
+</div>
+</ExpandableSeeMore>
 
 The code is available in the following notebook. Note that code will not work as data is not available in the Google Colab environment.
 
@@ -1081,7 +1704,7 @@ The Multi-head attention module is a bit complex and requires a lot of parameter
 ### What is CLS Token?
 
 The CLS token is a special token used in BERT and other transformer-based models to represent the entire input sequence. It is added at the beginning of the input sequence. The output embedding of the CLS token is expected to capture the overall meaning of the input sequence. In other words, the CLS token captures the context of the entire input sequence as a single vector.
-Following is the code to extract the CLS token embedding from the BERT model output:
+Below is the code to extract the CLS token embedding from the BERT model output:
 
 ```python
 cls_embedding = bert.last_hidden_state[:, 0, :]
@@ -1096,7 +1719,7 @@ The `bert.last_hidden_state` is the output of the BERT model. The `[:, 0, :]` in
 
 Simple attention is a mechanism that allows the model to focus on different parts of the input sequence when making predictions. It does this by computing a weighted sum of the input embeddings, where the weights are learned by the model. The attention weights are computed using a linear layer followed by a softmax function.  
 
-**Following is the isolated example code to compute the attention scores and weights:**
+**Below is the isolated example code to compute the attention scores and weights:**
 
 ```python
 import torch
@@ -1221,17 +1844,19 @@ class AspectDetectionModel(nn.Module):
 
         token_logits = self.token_classifier(sequence_output)  # For aspect term tagging (BIO)
         return token_logits, sequence_output
-
 ```
 
-In the above code, I am extracting the CLS token embedding from the bert model output. Along with that I am extracting the aspect pooled embedding using the attention score.  
-The `forward` method processes the input as follows: it first extracts the [CLS] token embedding, which often represents the overall sentence meaning.  
-The aspect mask is expanded to match the shape of the token embeddings, and non-aspect tokens are zeroed out.  
-The model then computes attention scores for each token using the attention_param layer, masking out non-aspect tokens by assigning them a very large negative value (so their softmax probability becomes near zero).
-These attention scores are normalized with softmax, and used to compute a weighted sum (pooling) of the token embeddings, focusing on the aspect tokens.  
-The pooled aspect embedding is concatenated with the [CLS] embedding, passed through dropout and layer normalization, and finally through the classifier to produce sentiment logits. The method returns both the logits and the attention scores, allowing for interpretability of which tokens contributed most to the sentiment prediction. This design enables the model to focus on specific aspects within a sentence when determining sentiment, rather than treating the sentence as a whole.
+The `forward` method of SentimentClassifier processes the input as follows:  
 
-**Following is the training loop for the model.**
+- It first extracts the [CLS] token embedding, which often represents the overall sentence meaning.  
+- The aspect mask is expanded to match the shape of the token embeddings, and non-aspect tokens are zeroed out.  
+- The model then computes attention scores for each token using the attention_param layer, masking out non-aspect tokens by assigning them a very large negative value (so their softmax probability becomes near zero).
+- These attention scores are normalized with softmax, and used to compute a weighted sum (pooling) of the token embeddings, focusing on the aspect tokens.  
+- The pooled aspect embedding is concatenated with the [CLS] embedding, passed through dropout and layer normalization, and finally through the classifier to produce sentiment logits.
+- The method returns both the logits and the attention scores, allowing for interpretability of which tokens contributed most to the sentiment prediction.
+- This design enables the model to focus on specific aspects within a sentence when determining sentiment, rather than treating the sentence as a whole.
+
+**Below is the training loop for the model.**
 
 ```python
 num_epochs = 10
@@ -1276,17 +1901,42 @@ for epoch in range(num_epochs):
         total_sentiment_train_loss += sentiment_loss.item()
         total_loss = aspect_loss + sentiment_loss
 
-        total_loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-
+        ....
 ```
 
 The validation loop is similar to the validation loop in the previous method where `extract_aspect_spans` function is used to extract the aspect spans from the predicted labels.
 
 ### Model Performance
 
-The above model that used Simple Attentions and CLS Embedding gave the best output. Following is the output of the model on the some of sample reviews.
+Below is the model performance on the validation set.
+
+**Aspect Extraction Metrics**
+
+```
+              precision    recall  f1-score   support
+
+         ASP       0.75      0.82      0.79     14040
+
+   micro avg       0.75      0.82      0.79     14040
+   macro avg       0.75      0.82      0.79     14040
+weighted avg       0.75      0.82      0.79     14040
+```
+
+**Sentiment Classification Metrics**
+
+```
+              precision    recall  f1-score   support
+
+         neg       0.88      0.88      0.88      2793
+         pos       0.93      0.97      0.95      7891
+         neu       0.59      0.40      0.48       782
+
+    accuracy                           0.91     11466
+   macro avg       0.80      0.75      0.77     11466
+weighted avg       0.90      0.91      0.90     11466
+```
+
+The above model that used Simple Attentions and CLS Embedding gave the best output. Below is the output of the model on the some of sample reviews.
 
 **Example Review**
 
@@ -1294,6 +1944,8 @@ The above model that used Simple Attentions and CLS Embedding gave the best outp
 
 **Output**
 
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
 <table>
     <thead>
         <tr>
@@ -1395,6 +2047,8 @@ The above model that used Simple Attentions and CLS Embedding gave the best outp
         </tr>
     </tbody>
 </table>
+</div>
+</ExpandableSeeMore>
 
 **Example Review**
 
@@ -1402,6 +2056,8 @@ The above model that used Simple Attentions and CLS Embedding gave the best outp
 
 **Output**
 
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
 <table>
     <thead>
         <tr>
@@ -1653,6 +2309,8 @@ The above model that used Simple Attentions and CLS Embedding gave the best outp
         </tr>
     </tbody>
 </table>
+</div>
+</ExpandableSeeMore>
 
 **Example Review**
 
@@ -1660,6 +2318,8 @@ The above model that used Simple Attentions and CLS Embedding gave the best outp
 
 **Output**
 
+<ExpandableSeeMore>
+<div className='side-scrolling-table-container'>
 <table>
     <thead>
         <tr>
@@ -1841,14 +2501,53 @@ The above model that used Simple Attentions and CLS Embedding gave the best outp
         </tr>
     </tbody>
 </table>
+</div>
+</ExpandableSeeMore>
 
 The code is available in the following notebook. Note that code will not work as data is not available in the Google Colab environment.
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/gautamnaik1994/Aspect-Based-Sentiment-Analysis/blob/main/notebooks/04.BertBIO_Sentiment_Attention_v2.ipynb)
 
+## Combined Summary
+
+Below is the combined summary of the model performance on the validation set.
+
+<table>
+    <thead>
+        <tr>
+            <th>Model</th>
+            <th>Aspect Extraction F1 Score</th>
+            <th>Sentiment Classification F1 Score [Neg, Pos, Neu]</th>
+            <th>Sentiment Classification Accuracy</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>Mean Pooling</td>
+            <td>0.79</td>
+            <td>0.89, 0.96, 0.50</td>
+            <td>0.91</td>
+        </tr>
+        <tr>
+            <td>Multi-head Attention</td>
+            <td>0.75</td>
+            <td>0.84, 0.94, 0.42</td>
+            <td>0.88</td>
+        </tr>
+        <tr>
+            <td>Simple Attention + CLS</td>
+            <td>0.79</td>
+            <td>0.88, 0.95, 0.48</td>
+            <td>0.91</td>
+        </tr>
+    </tbody>
+</table>
+
+From above table we can see that all the techniques performed well on the aspect extraction task, with F1 scores around 0.79. However, the sentiment classification task showed more variability, with the Mean Pooling method performing best for positive and negative sentiments.
+
 ## Github Repository
 
-You can find the complete code for this article in my Github profile. Following is the link to the repository.  
+You can find the complete code used for this article in my Github profile. Below is the link to the repository.  
 [https://github.com/gautamnaik1994/Aspect-Based-Sentiment-Analysis](https://github.com/gautamnaik1994/Aspect-Based-Sentiment-Analysis)
 
 ## Real World Hurdles in ABSA
@@ -1869,4 +2568,4 @@ Even with the advancements of deep learning and sophisticated models like BERT, 
 
 ## Conclusion
 
-In this article, I discussed various approaches to conducting Aspect-Based Sentiment Analysis. The project's aim was to enhance my skills in NLP and deep learning. I gained significant insights while working on it, and I hope you find this article useful. If you have any questions or suggestions, don't hesitate to contact me.
+This article explored multiple strategies for Aspect-Based Sentiment Analysis, focusing on practical implementation and model performance. The project served as a valuable learning experience in NLP and deep learning, particularly in designing multi-head neural architectures and leveraging transformer models with PyTorch. It also strengthened my skills in evaluating complex deep learning workflows. I hope you found the discussion insightful. Feel free to reach out with any questions or feedback.
